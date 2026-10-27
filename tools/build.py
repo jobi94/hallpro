@@ -6,10 +6,11 @@ import json, os, math, re, html
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES = json.load(open(os.path.join(ROOT, 'tools', 'pages.json'), encoding='utf-8'))
 IMGS = json.load(open(os.path.join(ROOT, 'tools', 'images.json'), encoding='utf-8'))
+FONTS_CSS = open(os.path.join(ROOT, 'assets', 'css', 'fonts.css'), encoding='utf-8').read().strip()  # vkládá se přímo do <head>, ušetří jeden požadavek
 DOMAIN = 'https://www.hallpro.cz'
 FORM_ENDPOINT = ''            # sem později doplnit adresu funkce, která pošle e-mail + Telegram
 FORM_MAIL = 'info@hallpro.cz'  # záložní cíl (otevře e-mailového klienta), dokud není endpoint
-VERSION = '3'
+VERSION = '4'
 esc = html.escape
 
 # ---------------------------------------------------------------- firma
@@ -118,6 +119,11 @@ def mark(uid, gear_cls='gear', mono=False):
             f'<path d="M-2 62C8 104 62 120 108 74C80 108 26 104 -2 62Z" fill="url(#g{uid})"/>'
             f'<path class="swoosh" d="M0 60C12 98 60 112 104 72" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/></g>'
             f'<g class="{gear_cls}"><path d="{GEAR}" fill="#fff"/><circle cx="50" cy="54" r="11.5" fill="#F8661A"/><circle cx="50" cy="54" r="5.5" fill="#fff"/></g>')
+def big_mark():
+    # štít a kolo jako dvě samostatná SVG: kolo se pak otáčí jako celá vrstva na GPU (plynulé i na telefonu)
+    sh = mark('t', mono=True).split('<g class="gear">')[0]
+    return (f'<div class="tile-mark" aria-hidden="true"><svg viewBox="-4 0 116 124">{sh}</svg>'
+            f'<svg class="big-gear" viewBox="21 25 58 58"><path d="{GEAR}" fill="#fff"/><circle cx="50" cy="54" r="11.5" fill="#F25A14"/><circle cx="50" cy="54" r="5.5" fill="#fff"/></svg></div>')
 def logo(uid):
     return (f'<svg class="logo" viewBox="-4 0 330 124" role="img" aria-label="HallPro Service">{mark(uid)}'
             f'<text class="wm" x="118" y="62" font-family="Ubuntu,Inter Tight,sans-serif" font-weight="700" font-size="54" fill="currentColor" letter-spacing="-1">HallPro</text>'
@@ -134,6 +140,10 @@ def img(key, alt, sizes='100vw', cls='', eager=False, attrs=''):
     load = 'fetchpriority="high"' if eager else 'loading="lazy"'
     c = f' class="{cls}"' if cls else ''
     return f'<img{c} src="{src(mid)}" srcset="{srcset}" sizes="{sizes}" width="{big}" height="{h}" alt="{esc(alt)}" {load} decoding="async"{attrs}>'
+def img_preload(key, sizes='100vw'):
+    ss = IMGS[key]['sizes']
+    return (f'<link rel="preload" as="image" href="{P}assets/img/{key}-{next((w for w in ss if w >= 960), ss[-1])}.webp" '
+            f'imagesrcset="{", ".join(f"{P}assets/img/{key}-{w}.webp {w}w" for w in ss)}" imagesizes="{sizes}" fetchpriority="high">\n')
 def img_url(key, w=960):
     ss = IMGS[key]['sizes']; w = max([x for x in ss if x <= w] or [ss[0]]); return f'{P}assets/img/{key}-{w}.webp'
 
@@ -194,9 +204,7 @@ def head(title, desc, path, og_img='50c1daf8', extra='', preload=''):
 <meta property="og:title" content="{esc(title)}"><meta property="og:description" content="{esc(desc)}">
 <meta property="og:url" content="{url}"><meta property="og:image" content="{DOMAIN}/assets/img/{og_img}-{IMGS[og_img]["sizes"][-1]}.webp">
 <link rel="icon" href="{P}favicon.svg" type="image/svg+xml">
-<link rel="preload" href="{P}assets/fonts/intertight-400-600-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="{P}assets/fonts/inter-400-600-latin.woff2" as="font" type="font/woff2" crossorigin>
-{preload}<link rel="stylesheet" href="{P}assets/css/fonts.css?v={VERSION}">
+{"".join(f'<link rel="preload" href="{P}assets/fonts/{f}.woff2" as="font" type="font/woff2" crossorigin>' + chr(10) for f in ('intertight-400-600-latin', 'inter-400-600-latin', 'intertight-400-600-cs', 'inter-400-600-cs'))}{preload}<style>{FONTS_CSS.replace('../fonts/', P + 'assets/fonts/')}</style>
 <link rel="stylesheet" href="{P}assets/css/style.css?v={VERSION}">
 {extra}</head>'''
 
@@ -361,7 +369,7 @@ def build_home():
     gal = ''.join(f'<figure class="rv rv-d{i % 3}">{img(k, t, "(min-width:700px) 25vw, 50vw")}<figcaption>{esc(t)}</figcaption></figure>' for i, (k, t) in enumerate(field))
     html_ = head('HallPro Service – servis průmyslových hal, střech a konstrukcí | 24/7',
                  'Servis a opravy průmyslových hal, střech, ocelových konstrukcí a bezpečnostních prvků po celé ČR. Kontroly dle ČSN, výškové práce, havarijní servis 24/7. Vstupní prohlídka zdarma.',
-                 '', preload=f'<link rel="preload" as="image" href="assets/img/50c1daf8-1280.webp" fetchpriority="high">\n', extra=ld_business()) + f'''
+                 '', preload=img_preload('50c1daf8'), extra=ld_business()) + f'''
 <body>
 {header()}
 <section class="hero on-photo" aria-label="Úvod">
@@ -397,7 +405,7 @@ def build_home():
 </div></section>
 
 <section class="tile-row" aria-label="Co děláme">
- <div class="logo-tile"><p>Kontrolujeme · Udržujeme · Opravujeme</p><svg viewBox="-4 0 116 124" aria-hidden="true">{mark("t", "big-gear", mono=True)}</svg></div>
+ <div class="logo-tile"><p>Kontrolujeme · Udržujeme · Opravujeme</p>{big_mark()}</div>
  <div class="tile-copy"><span class="tag rv">Co děláme</span><h2 class="d2 rv">Technický stav budov, <span class="o">pod kontrolou.</span></h2></div>
 </section>
 

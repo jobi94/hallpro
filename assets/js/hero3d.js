@@ -52,7 +52,8 @@ void main(){
   async function get(i) {
     if (loaded[i]) return loaded[i];
     const s = slides[i];
-    const [im, dm] = await Promise.all([load(pick(s)), s.depth ? load(s.depth) : null]);
+    const first = i === 0 && box.querySelector('img'); // první fotku už stáhl prohlížeč – použít ji, ne stahovat znovu
+    const [im, dm] = await Promise.all([first && first.currentSrc ? load(first.currentSrc) : load(pick(s)), s.depth ? load(s.depth) : null]);
     return (loaded[i] = { t: tex(im), d: dm ? tex(dm) : null, size: [im.naturalWidth, im.naturalHeight] });
   }
   const dummy = tex(new ImageData(1, 1));
@@ -108,6 +109,8 @@ void main(){
     box.appendChild(canvas); resize(); bind(a, a); kick();
     requestAnimationFrame(() => box.classList.add('gl'));
     mark(0); schedule();
-    slides.forEach((_, i) => i && setTimeout(() => get(i), 1200 * i)); // ostatní snímky dotáhnout potichu
+    // ostatní snímky dotáhnout potichu, až se dočte zbytek stránky
+    const rest = () => slides.forEach((_, i) => i && setTimeout(() => get(i), 1200 * i));
+    document.readyState === 'complete' ? rest() : addEventListener('load', rest, { once: true });
   }).catch(() => {});
 })();

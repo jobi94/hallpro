@@ -89,7 +89,9 @@ p{margin:0 0 1em}
 /* ---------- header ---------- */
 .hdr{position:fixed;inset:0 0 auto;z-index:60;height:var(--hdr);display:flex;align-items:center;transition:background .35s,box-shadow .35s,height .35s,transform .4s var(--ease)}
 .hdr .wrap{display:flex;align-items:center;gap:16px;width:100%;max-width:none}
-.hdr.solid{background:rgba(255,255,255,.96);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);box-shadow:0 1px 0 var(--line)}
+.hdr.solid{background:rgba(255,255,255,.96);box-shadow:0 1px 0 var(--line)}
+/* rozmazání pozadí jen na počítači – na telefonu a tabletu při scrollu brzdí (při 96% krytí stejně skoro není vidět) */
+@media(hover:hover) and (pointer:fine){.hdr.solid{backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px)}}
 .hdr.hide{transform:translateY(-100%)}
 .brand{display:flex;align-items:center;flex:none;color:#fff}
 .hdr.solid .brand,.page-light .brand{color:var(--ink)}
@@ -101,8 +103,10 @@ body.menu-open .hdr .hdr-bar{color:#fff}
 .hdr-call{display:none;align-items:center;gap:10px;color:#fff;font:600 .8rem/1.1 var(--f-body);letter-spacing:.04em;white-space:nowrap}
 .hdr-call small{display:block;font-weight:500;opacity:.75;letter-spacing:.1em;font-size:.62rem;text-transform:uppercase}
 .hdr.solid .hdr-call,.page-light .hdr-call{color:var(--ink)}
-.hdr-call .pulse{width:9px;height:9px;border-radius:50%;background:#3BD16F;box-shadow:0 0 0 0 rgba(59,209,111,.6);animation:pulse 2s infinite}
-@keyframes pulse{70%{box-shadow:0 0 0 9px rgba(59,209,111,0)}100%{box-shadow:0 0 0 0 rgba(59,209,111,0)}}
+.hdr-call .pulse{position:relative;width:9px;height:9px;border-radius:50%;background:#3BD16F}
+/* pulz jen přes transform/opacity – běží na GPU, nepřekresluje stránku */
+.hdr-call .pulse::after{content:"";position:absolute;inset:0;border-radius:50%;background:rgba(59,209,111,.6);animation:pulse 2s infinite}
+@keyframes pulse{0%{transform:scale(1);opacity:1}70%{transform:scale(3);opacity:0}100%{transform:scale(1);opacity:0}}
 .hdr-cta{display:none}
 .menu-btn{margin-left:auto;display:inline-flex;align-items:center;gap:12px;height:44px;padding:0 16px;background:var(--o);color:#fff;border:0;border-radius:var(--r);font:600 .88rem/1 var(--f-body);cursor:pointer}
 .menu-btn .bars{width:18px;height:10px;position:relative}
@@ -236,8 +240,16 @@ a:hover>.logo .gear,.logo:hover .gear{animation:gearHover .9s var(--ease)}
 @media(min-width:900px){.tile-row{grid-template-columns:minmax(260px,34%) 1fr}}
 .logo-tile{background:var(--o);color:#fff;aspect-ratio:1;max-height:520px;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:clamp(18px,2.5vw,32px)}
 .logo-tile p{font:600 .95rem/1.25 var(--f-head);margin:0;max-width:12ch;position:relative;z-index:1}
-.logo-tile svg{position:absolute;right:-12%;bottom:-14%;width:88%;height:auto}
-.logo-tile .big-gear{transform-box:fill-box;transform-origin:center}
+.tile-mark{position:absolute;right:-12%;bottom:-14%;width:88%;aspect-ratio:116/124}
+.tile-mark svg{width:100%;height:auto}
+/* kolo je samostatná vrstva – otáčí se celé na GPU, nepřekresluje se */
+.tile-mark .big-gear{position:absolute;left:21.552%;top:20.161%;width:50%;height:auto;aspect-ratio:1;will-change:transform;backface-visibility:hidden}
+@supports (animation-timeline:view()){
+  /* časová osa podle polohy celé dlaždice na obrazovce (dlaždice sama má overflow:hidden, proto pojmenovaná osa) */
+  .logo-tile{view-timeline:--tile block}
+  .tile-mark .big-gear{animation:bigGear linear both;animation-timeline:--tile}
+}
+@keyframes bigGear{from{transform:rotate(0)}to{transform:rotate(300deg)}}
 .tile-copy{padding:clamp(32px,5vw,72px) var(--gut);display:flex;flex-direction:column;justify-content:center}
 @media(min-width:900px){.tile-copy{border-left:1px solid var(--line)}}
 

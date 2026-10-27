@@ -53,15 +53,28 @@ document.documentElement.classList.remove('no-js');
   $$('[data-count]').forEach(el => cio.observe(el));
 
   /* parallax obrázků + rotace velkého ozubeného kola podle scrollu */
-  const pars = $$('[data-par]'), gears = $$('.big-gear');
-  if (!reduce && (pars.length || gears.length)) {
+  /* kolo: kde prohlížeč umí animaci řízenou scrollem (CSS animation-timeline), otáčí ho sám mimo hlavní vlákno; jinak JS níže */
+  const pars = $$('[data-par]').map(el => ({ el, box: el.parentElement, k: -(+el.dataset.par || 7) }));
+  const gears = (window.CSS && CSS.supports('animation-timeline: --a')) ? [] : $$('.big-gear').map(el => ({ el, box: el.parentElement }));
+  const items = [...pars, ...gears];
+  if (!reduce && items.length) {
+    // počítat jen prvky, které jsou zrovna na obrazovce
+    const live = new Set();
+    const vio = new IntersectionObserver(es => { es.forEach(e => e.isIntersecting ? live.add(e.target) : live.delete(e.target)); request(); }, { rootMargin: '10% 0px' });
+    items.forEach(it => vio.observe(it.box));
     let ticking = false;
     const run = () => {
       ticking = false; const vh = innerHeight;
-      pars.forEach(el => { const r = el.parentElement.getBoundingClientRect(); if (r.bottom < 0 || r.top > vh) return; const p = (r.top + r.height / 2 - vh / 2) / vh; el.style.transform = `translate3d(0,${(Math.max(-1, Math.min(1, p)) * -(+el.dataset.par || 7)).toFixed(2)}%,0) scale(1.18)`; });
-      gears.forEach(g => { const r = g.ownerSVGElement.getBoundingClientRect(); if (r.bottom < 0 || r.top > vh) return; g.style.transform = `rotate(${((vh - r.top) * .25).toFixed(1)}deg)`; });
+      const act = items.filter(it => live.has(it.box));
+      const rs = act.map(it => it.box.getBoundingClientRect()); // nejdřív všechno přečíst, pak zapsat (bez opakovaného přepočtu layoutu)
+      act.forEach((it, i) => {
+        const r = rs[i];
+        if (it.k) { const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh)); it.el.style.transform = `translate3d(0,${(p * it.k).toFixed(2)}%,0) scale(1.18)`; }
+        else it.el.style.transform = `rotate(${(Math.max(0, Math.min(1, (vh - r.top) / (vh + r.height))) * 300).toFixed(1)}deg)`;
+      });
     };
-    addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(run); } }, { passive: true }); run();
+    const request = () => { if (!ticking) { ticking = true; requestAnimationFrame(run); } };
+    addEventListener('scroll', request, { passive: true }); addEventListener('resize', request);
   }
 
   /* logo: po najetí myší kolo protočit znovu */
